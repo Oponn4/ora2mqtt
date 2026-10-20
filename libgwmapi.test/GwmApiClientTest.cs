@@ -154,6 +154,42 @@ public class GwmApiClientTest
     }
 
     [Fact]
+    public void SendCmdSerializesSeatHeatingInstruction()
+    {
+        var request = new SendCmd
+        {
+            Instructions = new SendCmdInstruction
+            {
+                X0A = new Instruction0x0A
+                {
+                    Seat = new SeatInstruction
+                    {
+                        OperationMode = "1",
+                        SwitchOrder = "1",
+                        OperationTime = "10",
+                        LeftFront = "2"
+                    }
+                }
+            },
+            RemoteType = "0",
+            SecurityPassword = "hash",
+            Type = 2,
+            Vin = "vin"
+        };
+
+        using var document = JsonDocument.Parse(JsonSerializer.Serialize(request));
+        var instructions = document.RootElement.GetProperty("instructions");
+
+        Assert.True(instructions.TryGetProperty("0x0A", out var x0a));
+        Assert.False(instructions.TryGetProperty("0x04", out _));
+        var seat = x0a.GetProperty("seat");
+        Assert.Equal("2", seat.GetProperty("leftFront").GetString());
+        Assert.Equal("1", seat.GetProperty("switchOrder").GetString());
+        Assert.Equal("10", seat.GetProperty("operationTime").GetString());
+        Assert.False(seat.TryGetProperty("rightFront", out _));
+    }
+
+    [Fact]
     public async Task CanGetRemoteCtrlResult()
     {
         var client = GetAuthenticatedClient();

@@ -107,6 +107,7 @@ Everything lives below `GWM/<VIN>/`:
 | `command/ac/temperature` | target temperature, e.g. `22` |
 | `command/lock` | `LOCK` / `UNLOCK` |
 | `command/windows/close` | `PRESS` |
+| `command/seat/driver` | `off` / `1` / `2` / `3`, driver seat heating for 10 minutes |
 
 ## evcc
 

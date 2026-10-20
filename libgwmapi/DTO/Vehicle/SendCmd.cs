@@ -43,6 +43,10 @@ public class SendCmdInstruction
     [JsonPropertyName("0x08")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Instruction0x08 X08 { get; set; }
+
+    [JsonPropertyName("0x0A")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Instruction0x0A X0A { get; set; }
 }
 
 public class Instruction0x04
@@ -97,4 +101,33 @@ public class WindowInstruction
 
     [JsonPropertyName("skyLight")]
     public string SkyLight { get; set; }
+}
+
+public class Instruction0x0A
+{
+    [JsonPropertyName("seat")]
+    public SeatInstruction Seat { get; set; }
+}
+
+/// <summary>
+/// Seat heating levels are "0" (off) to "3". Field names follow the official app's Seat request.
+/// </summary>
+public class SeatInstruction
+{
+    [JsonPropertyName("operationMode")]
+    public string OperationMode { get; set; }
+
+    [JsonPropertyName("switchOrder")]
+    public string SwitchOrder { get; set; }
+
+    [JsonPropertyName("operationTime")]
+    public string OperationTime { get; set; }
+
+    [JsonPropertyName("leftFront")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string LeftFront { get; set; }
+
+    [JsonPropertyName("rightFront")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string RightFront { get; set; }
 }

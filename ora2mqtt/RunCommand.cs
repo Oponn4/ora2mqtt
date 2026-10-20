@@ -21,6 +21,7 @@ public class RunCommand:BaseCommand
     private const string LockCommandPayload = "LOCK";
     private const string UnlockCommandPayload = "UNLOCK";
     private const string WindowClosePayload = "PRESS";
+    private const string DefaultSeatHeatingOperationTime = "10";
     private const string RemoteCommandPendingResultCode = "2000";
     private const int RemoteCommandResultMaxPolls = 18;
     private const int RemoteCommandStatusMaxLength = 240;
@@ -430,6 +431,38 @@ public class RunCommand:BaseCommand
             {
                 await PublishRemoteCommandStatusAsync(mqtt, vin, $"{commandName}: failed - {FormatRemoteCommandException(ex)}", cancellationToken);
                 _logger.LogError(ex, "Failed to process lock command on topic {Topic}", arg.ApplicationMessage.Topic);
+            }
+
+            return;
+        }
+
+        if (arg.ApplicationMessage.Topic.EndsWith("/command/seat/driver", StringComparison.OrdinalIgnoreCase))
+        {
+            const string commandName = "Driver seat heating";
+            try
+            {
+                await PublishRemoteCommandStatusAsync(mqtt, vin, $"{commandName}: received MQTT command", cancellationToken);
+                var level = NormalizeSeatHeatingLevel(payload);
+                if (level is null)
+                {
+                    await PublishRemoteCommandStatusAsync(mqtt, vin, $"{commandName}: failed - unsupported payload '{payload}'", cancellationToken);
+                    _logger.LogError("Failed to process seat heating command for {Vin}: unsupported payload '{Payload}'", vin, payload);
+                    return;
+                }
+
+                await ExecuteRemoteCommandAsync(
+                    mqtt,
+                    api,
+                    vin,
+                    commandName,
+                    () => SendSeatHeatingCommandAsync(api, config, vin, level, cancellationToken),
+                    cancellationToken);
+                await PublishStatusAsync(mqtt, api, options, false, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                await PublishRemoteCommandStatusAsync(mqtt, vin, $"{commandName}: failed - {FormatRemoteCommandException(ex)}", cancellationToken);
+                _logger.LogError(ex, "Failed to process seat heating command on topic {Topic}", arg.ApplicationMessage.Topic);
             }
 
             return;
@@ -885,6 +918,19 @@ public class RunCommand:BaseCommand
                     icon = "mdi:window-closed-variant",
                     retain = false
                 },
+                seat_heating_driver = new
+                {
+                    p = "select",
+                    unique_id = $"gwm_{vehicle.Vin}_seat_heating_driver",
+                    state_topic = $"{topicPrefix}/items/2220001/value",
+                    value_template = "{{ 'off' if value | int(0) == 0 else value | int | string }}",
+                    command_topic = $"GWM/{vehicle.Vin}/command/seat/driver",
+                    options = new[] { "off", "1", "2", "3" },
+                    name = "Driver Seat Heating",
+                    icon = "mdi:car-seat-heater",
+                    optimistic = false,
+                    retain = false
+                },
                 remote_command_status = new
                 {
                     p = "sensor",
@@ -1226,6 +1272,52 @@ public class RunCommand:BaseCommand
                         RightFront = "0",
                         RightBack = "0",
                         SkyLight = String.Empty
+                    }
+                }
+            },
+            RemoteType = "0",
+            SecurityPassword = securityPassword,
+            Type = 2,
+            Vin = vin
+        };
+
+        await api.SendCmdAsync(request, cancellationToken);
+        return request.SeqNo;
+    }
+
+    internal static string NormalizeSeatHeatingLevel(string payload)
+    {
+        var value = payload?.Trim().ToLowerInvariant();
+        return value switch
+        {
+            "off" or "0" => "0",
+            "1" => "1",
+            "2" => "2",
+            "3" => "3",
+            _ => null
+        };
+    }
+
+    private async Task<string> SendSeatHeatingCommandAsync(GwmApiClient api, Ora2MqttOptions config, string vin, string level, CancellationToken cancellationToken)
+    {
+        var securityPassword = GetSecurityPassword(config, vin, "seat heating");
+        if (securityPassword is null)
+        {
+            return null;
+        }
+
+        var request = new SendCmd
+        {
+            Instructions = new SendCmdInstruction
+            {
+                X0A = new Instruction0x0A
+                {
+                    Seat = new SeatInstruction
+                    {
+                        OperationMode = "1",
+                        SwitchOrder = "1",
+                        OperationTime = DefaultSeatHeatingOperationTime,
+                        LeftFront = level
                     }
                 }
             },
